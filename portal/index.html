@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal de Zeladoria (simulação)</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; background: #eef1f4; color: #1f2933; }
+  .aviso { background: #fff4d6; color: #6b4e00; text-align: center; padding: 8px 12px; font-size: 13px; border-bottom: 1px solid #f0d58a; }
+  header { background: #24476b; color: #fff; padding: 18px 24px; }
+  header h1 { margin: 0; font-size: 22px; }
+  header p { margin: 4px 0 0; font-size: 14px; opacity: .85; }
+  main { max-width: 760px; margin: 24px auto; padding: 0 16px; }
+  .card { background: #fff; border-radius: 8px; padding: 24px; box-shadow: 0 1px 3px rgba(0,0,0,.08); margin-bottom: 20px; }
+  .card h2 { margin: 0 0 16px; font-size: 18px; color: #24476b; }
+  label { display: block; font-weight: 600; font-size: 14px; margin: 14px 0 6px; }
+  input, select, textarea { width: 100%; padding: 10px; font-size: 15px; border: 1px solid #b8c2cc; border-radius: 6px; font-family: inherit; }
+  textarea { height: 90px; resize: vertical; }
+  button { margin-top: 20px; padding: 12px 22px; font-size: 15px; font-weight: 600; border: 0; border-radius: 6px; cursor: pointer; background: #24476b; color: #fff; }
+  button:disabled { background: #8a9bb0; cursor: wait; }
+  .erro { display: none; margin-top: 16px; padding: 12px; border-radius: 6px; background: #fde8e8; color: #9b1c1c; font-weight: 600; }
+  #telaSucesso { display: none; text-align: center; }
+  #telaSucesso .ok { font-size: 40px; color: #1f7a4d; }
+  #protocolo { display: inline-block; margin: 8px 0 4px; font-size: 26px; font-weight: 700; letter-spacing: 1px; color: #1f7a4d; background: #e7f6ee; padding: 8px 16px; border-radius: 6px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid #e4e7eb; }
+  th { color: #52606d; font-weight: 600; }
+  .vazio { color: #7b8794; font-size: 14px; }
+  .rodape { display: flex; justify-content: space-between; align-items: center; }
+  .link { background: none; color: #9b1c1c; font-size: 13px; padding: 0; margin: 0; font-weight: 400; text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="aviso">Ambiente de simulação acadêmica (FIAP · projeto Caminho Livre). Não é um site oficial de nenhuma prefeitura.</div>
+<header>
+  <h1>Portal de Zeladoria Urbana</h1>
+  <p>Solicitação de reparo em calçadas e vias públicas · simulação</p>
+</header>
+<main>
+  <section class="card" id="telaFormulario">
+    <h2>Nova solicitação</h2>
+    <form id="formSolicitacao" autocomplete="off">
+      <label for="solicitante">Solicitante</label>
+      <input id="solicitante" name="solicitante" placeholder="Nome da pessoa ou organização">
+
+      <label for="endereco">Logradouro</label>
+      <input id="endereco" name="endereco" placeholder="Ex.: Rua Antônio Agu">
+
+      <label for="coordenadas">Coordenadas (latitude, longitude)</label>
+      <input id="coordenadas" name="coordenadas" placeholder="Ex.: -23.5321, -46.7918">
+
+      <label for="tipo">Tipo de problema</label>
+      <select id="tipo" name="tipo">
+        <option value="">Selecione...</option>
+        <option>Buraco na calçada</option>
+        <option>Obstáculo na calçada</option>
+        <option>Falta de rampa de acessibilidade</option>
+        <option>Alagamento</option>
+        <option>Iluminação pública apagada</option>
+        <option>Obra sem sinalização</option>
+      </select>
+
+      <label for="descricao">Descrição</label>
+      <textarea id="descricao" name="descricao" placeholder="Descreva o problema"></textarea>
+
+      <button type="submit" id="btnEnviar">Enviar solicitação</button>
+      <div class="erro" id="mensagemErro"></div>
+    </form>
+  </section>
+
+  <section class="card" id="telaSucesso">
+    <div class="ok">✔</div>
+    <h2>Solicitação registrada</h2>
+    <div>Número do protocolo:</div>
+    <div id="protocolo"></div>
+    <p>Guarde este número para acompanhar o atendimento.</p>
+    <button type="button" id="btnNova">Nova solicitação</button>
+  </section>
+
+  <section class="card">
+    <div class="rodape">
+      <h2>Solicitações registradas</h2>
+      <button type="button" class="link" id="btnLimpar">limpar lista</button>
+    </div>
+    <div id="lista"></div>
+  </section>
+</main>
+
+<script>
+  // Simula instabilidade do sistema: 15% das tentativas falham.
+  // Para desligar, abra a página com ?falhas=0 no fim do endereço.
+  var params = new URLSearchParams(location.search);
+  var TAXA_FALHA = params.has("falhas") ? Number(params.get("falhas")) / 100 : 0.15;
+
+  function carregar() {
+    try { return JSON.parse(localStorage.getItem("zeladoria") || "[]"); } catch (e) { return []; }
+  }
+  function salvar(lista) {
+    try { localStorage.setItem("zeladoria", JSON.stringify(lista)); } catch (e) {}
+  }
+  var registros = carregar();
+
+  function desenharLista() {
+    var div = document.getElementById("lista");
+    if (registros.length === 0) { div.innerHTML = '<p class="vazio">Nenhuma solicitação ainda.</p>'; return; }
+    var html = "<table><tr><th>Protocolo</th><th>Tipo</th><th>Logradouro</th><th>Horário</th></tr>";
+    registros.slice().reverse().forEach(function (r) {
+      html += "<tr><td>" + r.protocolo + "</td><td>" + r.tipo + "</td><td>" + r.endereco + "</td><td>" + r.hora + "</td></tr>";
+    });
+    div.innerHTML = html + "</table>";
+  }
+
+  function mostrarErro(texto) {
+    var e = document.getElementById("mensagemErro");
+    e.textContent = texto;
+    e.style.display = "block";
+  }
+
+  document.getElementById("formSolicitacao").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    document.getElementById("mensagemErro").style.display = "none";
+    var dados = {
+      solicitante: document.getElementById("solicitante").value.trim(),
+      endereco: document.getElementById("endereco").value.trim(),
+      coordenadas: document.getElementById("coordenadas").value.trim(),
+      tipo: document.getElementById("tipo").value,
+      descricao: document.getElementById("descricao").value.trim()
+    };
+    if (!dados.solicitante || !dados.endereco || !dados.tipo || !dados.descricao) {
+      mostrarErro("Preencha solicitante, logradouro, tipo e descrição.");
+      return;
+    }
+    var botao = document.getElementById("btnEnviar");
+    botao.disabled = true;
+    botao.textContent = "Enviando...";
+    setTimeout(function () {
+      botao.disabled = false;
+      botao.textContent = "Enviar solicitação";
+      if (Math.random() < TAXA_FALHA) {
+        mostrarErro("Serviço temporariamente indisponível. Tente novamente.");
+        return;
+      }
+      var hoje = new Date();
+      var data = hoje.getFullYear() + String(hoje.getMonth() + 1).padStart(2, "0") + String(hoje.getDate()).padStart(2, "0");
+      var protocolo = "ZEL-" + data + "-" + String(registros.length + 1).padStart(4, "0");
+      dados.protocolo = protocolo;
+      dados.hora = hoje.toLocaleTimeString("pt-BR");
+      registros.push(dados);
+      salvar(registros);
+      desenharLista();
+      document.getElementById("protocolo").textContent = protocolo;
+      document.getElementById("telaFormulario").style.display = "none";
+      document.getElementById("telaSucesso").style.display = "block";
+    }, 800);
+  });
+
+  document.getElementById("btnNova").addEventListener("click", function () {
+    document.getElementById("formSolicitacao").reset();
+    document.getElementById("telaSucesso").style.display = "none";
+    document.getElementById("telaFormulario").style.display = "block";
+  });
+
+  document.getElementById("btnLimpar").addEventListener("click", function () {
+    registros = []; salvar(registros); desenharLista();
+  });
+
+  desenharLista();
+</script>
+</body>
+</html>

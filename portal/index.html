@@ -101,6 +101,13 @@
   }
   var registros = carregar();
 
+  // A tela de sucesso só existe na página depois de um envio que deu certo.
+  // Assim, um envio que falhou nunca mostra o protocolo do envio anterior.
+  var telaSucesso = document.getElementById("telaSucesso");
+  var paiSucesso = telaSucesso.parentNode;
+  var depoisSucesso = telaSucesso.nextElementSibling;
+  paiSucesso.removeChild(telaSucesso);
+
   function desenharLista() {
     var div = document.getElementById("lista");
     if (registros.length === 0) { div.innerHTML = '<p class="vazio">Nenhuma solicitação ainda.</p>'; return; }
@@ -120,6 +127,7 @@
   document.getElementById("formSolicitacao").addEventListener("submit", function (ev) {
     ev.preventDefault();
     document.getElementById("mensagemErro").style.display = "none";
+    if (telaSucesso.parentNode) { paiSucesso.removeChild(telaSucesso); }
     var dados = {
       solicitante: document.getElementById("solicitante").value.trim(),
       endereco: document.getElementById("endereco").value.trim(),
@@ -149,15 +157,18 @@
       registros.push(dados);
       salvar(registros);
       desenharLista();
-      document.getElementById("protocolo").textContent = protocolo;
+      telaSucesso.querySelector("#protocolo").textContent = protocolo;
+      telaSucesso.style.display = "block";
+      paiSucesso.insertBefore(telaSucesso, depoisSucesso);
       document.getElementById("telaFormulario").style.display = "none";
-      document.getElementById("telaSucesso").style.display = "block";
     }, 800);
   });
 
-  document.getElementById("btnNova").addEventListener("click", function () {
+  telaSucesso.querySelector("#btnNova").addEventListener("click", function () {
     document.getElementById("formSolicitacao").reset();
-    document.getElementById("telaSucesso").style.display = "none";
+    document.getElementById("mensagemErro").style.display = "none";
+    telaSucesso.querySelector("#protocolo").textContent = "";
+    if (telaSucesso.parentNode) { paiSucesso.removeChild(telaSucesso); }
     document.getElementById("telaFormulario").style.display = "block";
   });
 
